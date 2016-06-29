@@ -25,19 +25,24 @@ protected:
     void timerEvent(QTimerEvent *e);
 
     void initShaders();
-    void initTextures();
+    void initTextures();    
 
 private:
     QOpenGLShaderProgram program;
     QMatrix4x4 projection;
 
-    QOpenGLTexture *texture;
+    QOpenGLTexture *textures[3];
     RippleEffect *ripple;
     QBasicTimer timer;
 
+    int speed;
+    int idxTexture;
 signals:
 
 public slots:
+    void setSpeed(int value);
+    void setTexture(int value);
+    void setDistort(int value);
 };
 
 #endif // GLWIDGET_H

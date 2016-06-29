@@ -2,8 +2,8 @@
 #include "RippleTable.h"
 #include <cmath>
 
-RippleEffect::RippleEffect(QOpenGLShaderProgram *program, float w, float h)
-    : program(program), indexBuf(QOpenGLBuffer::IndexBuffer), size(w, h)
+RippleEffect::RippleEffect(QOpenGLShaderProgram *program, float w, float h, QOpenGLTexture *)
+    : program(program), indexBuf(QOpenGLBuffer::IndexBuffer), distortMode(eDistortTexCoords), imgSize(w, h)
 {
     // Generate VBOs
     positionBuf.create();
@@ -20,6 +20,9 @@ RippleEffect::~RippleEffect()
     delete[] vertices;
     delete[] verticesCopy;
 
+    delete[] texCoords;
+    delete[] texCoordsCopy;
+
     positionBuf.destroy();
     texCoordBuf.destroy();
     indexBuf.destroy();
@@ -30,8 +33,8 @@ void RippleEffect::initPositions()
     vertices = new Vector3D[(GRID_SIZE_X+1)*(GRID_SIZE_Y+1)];
     verticesCopy = new Vector3D[(GRID_SIZE_X+1)*(GRID_SIZE_Y+1)];
 
-    Vector2D offset(-size.x/2, -size.y/2);
-    Vector2D piece(size.x/GRID_SIZE_X, size.y/GRID_SIZE_Y);
+    Vector2D offset(-imgSize.x/2, -imgSize.y/2);
+    Vector2D piece(imgSize.x/GRID_SIZE_X, imgSize.y/GRID_SIZE_Y);
 
     for(int y = 0; y <= GRID_SIZE_Y; y++)
         for(int x = 0; x <= GRID_SIZE_X; x++)
@@ -43,16 +46,15 @@ void RippleEffect::initPositions()
 
 void RippleEffect::initTexCoords()
 {
-    Vector2D* texCoords = new Vector2D[(GRID_SIZE_X+1)*(GRID_SIZE_Y+1)];
+    texCoords = new Vector2D[(GRID_SIZE_X+1)*(GRID_SIZE_Y+1)];
+    texCoordsCopy = new Vector2D[(GRID_SIZE_X+1)*(GRID_SIZE_Y+1)];
 
     for (int y = 0; y <= GRID_SIZE_Y; y++)
         for (int x = 0; x <= GRID_SIZE_X; x++)        
-            texCoords[y*(GRID_SIZE_X+1)+x] = Vector2D(x/(GLfloat)GRID_SIZE_X, (GRID_SIZE_Y-y)/(GLfloat)GRID_SIZE_Y);
+            texCoordsCopy[y*(GRID_SIZE_X+1)+x] = texCoords[y*(GRID_SIZE_X+1)+x] = Vector2D(x/(GLfloat)GRID_SIZE_X, (GRID_SIZE_Y-y)/(GLfloat)GRID_SIZE_Y);
 
     texCoordBuf.bind();
-    texCoordBuf.allocate(texCoords, (GRID_SIZE_X+1)*(GRID_SIZE_Y+1) * sizeof(Vector2D));
-
-    delete[] texCoords;
+    texCoordBuf.allocate(texCoords, (GRID_SIZE_X+1)*(GRID_SIZE_Y+1) * sizeof(Vector2D));   
 }
 
 void RippleEffect::initIndices()
@@ -90,19 +92,25 @@ void RippleEffect::update()
         }      
     }
 
+    float dx = distortMode == eDistortVertices ? imgSize.x : 1;
+    float dy = distortMode == eDistortVertices ? imgSize.y : 1;
     for (int y = 1; y < GRID_SIZE_Y; y++)
     {
         for (int x = 1; x < GRID_SIZE_X; x++)
         {
             int offset = y*(GRID_SIZE_X+1)+x;
-            vertices[offset] = verticesCopy[offset];
+
+            if (distortMode == eDistortVertices)
+                vertices[offset] = verticesCopy[offset];
+            else
+                texCoords[offset] = texCoordsCopy[offset];
 
             for (RippleData ripple : ripples)
             {
                 int mx = x - ripple.gx;
                 int my = y - ripple.gy;
-                float sx = size.x;
-                float sy = size.y;
+                float sx = dx;
+                float sy = dy;
 
                 if (mx < 0)
                 {
@@ -127,14 +135,30 @@ void RippleEffect::update()
                 if (amp < 0)
                     amp = 0;
 
-                vertices[offset].x += g_ripple_vector[mx][my].dx * sx * g_ripple_amp[r].amplitude * amp;
-                vertices[offset].y += g_ripple_vector[mx][my].dy * sy * g_ripple_amp[r].amplitude * amp;
+                if (distortMode == eDistortVertices)
+                {
+                    vertices[offset].x += g_ripple_vector[mx][my].dx * sx * g_ripple_amp[r].amplitude * amp;
+                    vertices[offset].y += g_ripple_vector[mx][my].dy * sy * g_ripple_amp[r].amplitude * amp;
+                }
+                else
+                {
+                    texCoords[offset].x += g_ripple_vector[mx][my].dx * sx * g_ripple_amp[r].amplitude * amp;
+                    texCoords[offset].y += g_ripple_vector[mx][my].dy * sy * g_ripple_amp[r].amplitude * amp;
+                }
             }
         }
     }
 
-    positionBuf.bind();
-    positionBuf.write(0, vertices, (GRID_SIZE_X+1)*(GRID_SIZE_Y+1) * sizeof(Vector3D));
+    if (distortMode == eDistortVertices)
+    {
+        positionBuf.bind();
+        positionBuf.write(0, vertices, (GRID_SIZE_X+1)*(GRID_SIZE_Y+1) * sizeof(Vector3D));
+    }
+    else
+    {
+        texCoordBuf.bind();
+        texCoordBuf.write(0, texCoords, (GRID_SIZE_X+1)*(GRID_SIZE_Y+1) * sizeof(Vector2D));
+    }
 }
 
 void RippleEffect::draw()
@@ -161,18 +185,41 @@ void RippleEffect::draw()
 
 void RippleEffect::addRipple(float x, float y, int step)
 {
-    x += size.x/2;
-    y = size.y - (y + size.y/2);
+    x += imgSize.x/2;
+    y = imgSize.y - (y + imgSize.y/2);
 
     RippleData data =
     {
-        (int) (x/size.x * GRID_SIZE_X),
-        (int) (y/size.y * GRID_SIZE_Y),
+        (int) (x/imgSize.x * GRID_SIZE_X),
+        (int) (y/imgSize.y * GRID_SIZE_Y),
         0,
-        (int) std::sqrtf(size.x*size.x + size.y*size.y) + RIPPLE_LENGTH,
+        (int) std::sqrtf(imgSize.x*imgSize.x + imgSize.y*imgSize.y) + RIPPLE_LENGTH,
         step
     };
     ripples.push_back(data);    
+}
+
+void RippleEffect::setDistortMode(DistortMode mode)
+{
+    if (distortMode == eDistortVertices)
+    {
+        for (int y = 1; y < GRID_SIZE_Y; y++)
+            for (int x = 1; x < GRID_SIZE_X; x++)
+                vertices[y*(GRID_SIZE_X+1)+x] = verticesCopy[y*(GRID_SIZE_X+1)+x];
+
+        positionBuf.bind();
+        positionBuf.write(0, vertices, (GRID_SIZE_X+1)*(GRID_SIZE_Y+1) * sizeof(Vector3D));
+    }
+    else
+    {
+        for (int y = 1; y < GRID_SIZE_Y; y++)
+            for (int x = 1; x < GRID_SIZE_X; x++)
+                texCoords[y*(GRID_SIZE_X+1)+x] = texCoordsCopy[y*(GRID_SIZE_X+1)+x];
+
+        texCoordBuf.bind();
+        texCoordBuf.write(0, texCoords, (GRID_SIZE_X+1)*(GRID_SIZE_Y+1) * sizeof(Vector2D));
+    }
+    distortMode = mode;
 }
 
 float RippleEffect::getDistance(const Vector2D& a, const Vector2D& b)

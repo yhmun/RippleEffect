@@ -1,9 +1,10 @@
 #include "GLWidget.h"
 #include <QMouseEvent>
 
-GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent), texture(nullptr), ripple(nullptr)
+GLWidget::GLWidget(QWidget *parent) : QOpenGLWidget(parent), ripple(nullptr), speed(7), idxTexture(0)
 {
-
+    for (int i = 0; i < 3; i++)
+        textures[i] = nullptr;
 }
 
 GLWidget::~GLWidget()
@@ -11,7 +12,8 @@ GLWidget::~GLWidget()
     // Make sure the context is current when deleting the texture
     // and the buffers.
     makeCurrent();
-    delete texture;
+    for (int i = 0; i < 3; i++)
+        delete textures[i];
     delete ripple;
     doneCurrent();
 }
@@ -30,7 +32,6 @@ void GLWidget::initializeGL()
     glEnable(GL_CULL_FACE);
 
     ripple = new RippleEffect(&program, 512, 512);
-
     timer.start(12, this);
 }
 
@@ -45,7 +46,7 @@ void GLWidget::paintGL()
     // Clear color and depth buffer
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    texture->bind();
+    textures[idxTexture]->bind();
 
     // Calculate model view transformation
     QMatrix4x4 matrix;
@@ -65,7 +66,7 @@ void GLWidget::mousePressEvent(QMouseEvent *event)
 {        
     float x = event->localPos().x() - this->size().width()/2;
     float y = this->size().height()/2 - event->localPos().y();
-    ripple->addRipple(x, y);
+    ripple->addRipple(x, y, speed);
 }
 
 void GLWidget::mouseReleaseEvent(QMouseEvent *)
@@ -100,16 +101,40 @@ void GLWidget::initShaders()
 
 void GLWidget::initTextures()
 {
+    const char* files[] = {
+        ":/textures/Underwater-Fish-Wallpaper.jpg",
+        ":/textures/water_water_0056_01.jpg",
+        ":/textures/stones-770264.jpg"
+    };
+
     // Load image
-    texture = new QOpenGLTexture(QImage(":/textures/Underwater-Fish-Wallpaper.jpg").mirrored());
+    for (int i = 0; i < 3; i++)
+    {
+        textures[i] = new QOpenGLTexture(QImage(files[i]).mirrored());
 
-    // Set nearest filtering mode for texture minification
-    texture->setMinificationFilter(QOpenGLTexture::Nearest);
+        // Set nearest filtering mode for texture minification
+        textures[i]->setMinificationFilter(QOpenGLTexture::Nearest);
 
-    // Set bilinear filtering mode for texture magnification
-    texture->setMagnificationFilter(QOpenGLTexture::Linear);
+        // Set bilinear filtering mode for texture magnification
+        textures[i]->setMagnificationFilter(QOpenGLTexture::Linear);
 
-    // Wrap texture coordinates by repeating
-    // f.ex. texture coordinate (1.1, 1.2) is same as (0.1, 0.2)
-    texture->setWrapMode(QOpenGLTexture::Repeat);
+        // Wrap texture coordinates by repeating
+        // f.ex. texture coordinate (1.1, 1.2) is same as (0.1, 0.2)
+        textures[i]->setWrapMode(QOpenGLTexture::Repeat);
+    }
+}
+
+void GLWidget::setSpeed(int value)
+{
+    speed = value;
+}
+
+void GLWidget::setTexture(int value)
+{
+    idxTexture = value;
+}
+
+void GLWidget::setDistort(int value)
+{
+    ripple->setDistortMode(value == 0 ? RippleEffect::eDistortVertices : RippleEffect::eDistortTexCoords);
 }

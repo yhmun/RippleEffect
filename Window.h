@@ -17,6 +17,14 @@ public:
 
 private:
     Ui::Window *ui;
+
+public slots:
+    void distortRadio1Clicked();
+    void distortRadio2Clicked();
+
+    void imageRadio1Clicked();
+    void imageRadio2Clicked();
+    void imageRadio3Clicked();
 };
 
 #endif // WINDOW_H

@@ -3,5 +3,7 @@
         <file>shaders/fshader.glsl</file>
         <file>shaders/vshader.glsl</file>
         <file>textures/Underwater-Fish-Wallpaper.jpg</file>
+        <file>textures/stones-770264.jpg</file>
+        <file>textures/water_water_0056_01.jpg</file>
     </qresource>
 </RCC>

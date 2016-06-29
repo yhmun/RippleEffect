@@ -3,6 +3,7 @@
 
 #include <QOpenGLShaderProgram>
 #include <QOpenGLBuffer>
+#include <QOpenGLTexture>
 
 class RippleEffect
 {
@@ -38,13 +39,22 @@ class RippleEffect
     };
 
 public:
-    RippleEffect(QOpenGLShaderProgram *program, float w, float h);
+
+    enum DistortMode
+    {
+        eDistortVertices,
+        eDistortTexCoords
+    };
+
+    RippleEffect(QOpenGLShaderProgram *program, float w, float h, QOpenGLTexture *texure = nullptr);
     virtual ~RippleEffect();
 
     void draw();
     void update();
 
     void addRipple(float x, float y, int step = 7);
+
+    void setDistortMode(DistortMode mode);
 
 private:
 
@@ -60,10 +70,18 @@ private:
     QOpenGLBuffer texCoordBuf;
     QOpenGLBuffer indexBuf;
 
-    Vector2D size;
+    DistortMode distortMode;
+
+    Vector2D imgSize;
+    Vector2D texSize;
+
     std::vector<RippleData> ripples;
+
     Vector3D* vertices;
     Vector3D* verticesCopy;
+
+    Vector2D* texCoords;
+    Vector2D* texCoordsCopy;
 };
 
 #endif // RIPPLEEFFECT_H
