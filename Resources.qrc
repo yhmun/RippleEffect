@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/">
+        <file>shaders/fshader.glsl</file>
+        <file>shaders/vshader.glsl</file>
+        <file>textures/Underwater-Fish-Wallpaper.jpg</file>
+    </qresource>
+</RCC>
